@@ -8,313 +8,95 @@
 #include "ran.h"
 #include "eigen_sym.h"
 
-//	radios:		de las esferas con sobredensidad adecuada y centrados en los puntos de red
-//	huecos:		esfereas con sobredensidad adecuada, hay poco sobrelapamiento entre ellas
-//	randoms:	radios de las esferas en posiciones random fuera de los huecos anteriores
-//	huecos:		actualiza huecos incluyendo los encontrados a partir de los randoms
-//	voids:		familias de huecos con suficiente sobrelapamiento
-//	esferas:	hueco central de cada void
 
 
-
-//	Puede haber sobrelapamiento
-//	Restricción: al identificar un hueco, anulo su interior para que no sea candidato a centro de hueco
-//	cuando voy a refinau un nuevo hueco, me restrinjo al exterior de los anteriores
-
-//	cuando haya terminado de indentificar los huecos
-//	libero X, Y, Z, ID
-//	lleno los ID con las posiciones de los huecos
-//	duplico el valor de los radios Radv con el nombre Raux
-//	creo un arreglo de IDs para los voids: IDv={NumPart}
-//	actual_IDv=0
-
-//	parte que se repite
-
-//	busco el más grande y cambio su IDv por actual_IDv
-//	busco en una vecindad (usando los IDv) de radio Radv
-//	coloco en un arreglo a todos los vecinos cuya distancia sea menor o igual al Radv
-//	tambien les hago que su IDv sea el mismo que el hueco central
-//	empezando por el vecino más grande:
-//	busco en una vecindad de radio Radv
-//	agrego al arreglo los huecos cuya (distancia sea menor o igual al Radv) y (radio sea menor)
-//	....
-//	cuando ya no haya más vecinos de vecinos de vecinos ... con distancia menor que el radio
-//	y con radio menor, paro
-
-//	actual_IDv++
-
-//	repito
-
-
-
-
-//	junio 24
-
-//	voy a imprimir un archivo con el centro y el radio de la esfera más grande de cada void
-//	esto, para calcular los perfiles a partir de esta información
-
-//	más adelante, podría hacer otro programa que calcule en centro geométrico
-//	y el volumen de los voids formados no solo por la esfera más grande
-//	sino por todas las esferas que poseen suficiente sobrelapamiento
-//	dichas esferas ya están siendo identificadas en esta version
-
-
-
-//	Agosto 15 2016
-//	Voy a adaptar la parte de alta resolucion para que se convierta en lo siguiente:
-//	La parte pixelizada va a quedar como está:
-//	Calcula los radios de las esferas subdensas más gramdes centradas en cada pixel cubico
-//	Refina el tamaño y la posición de dichas esferas usando la posición de las partículas
-//	la adaptación va a ser así:
-//	En vez de alta resolución como tal, que encontraba voids más pequeños y enriquecía los grandes,
-//	solo voy a enriquecer los voids existentes, de la siguiente manera:
-//	Los randoms ya no van a cubrir todo el espacio fuera de los voids y halos
-//	solamente van a estar alrededor de todas las esfereas refinadas:
-//	van a estar más dejos que 0.9 radios, y más cerca que 2 radios, mo más.
-//	con esto puedo enriquecer los voids con radio menor que 2 unidades de nc
-//	llevando el radio mínimo hasta 0.2 unidades de nc
-//	sin tener que encontrar nuevos voids con radio menor que 2, que serían una cantidad alarmante
-
-//	para esto tengo que modificar llera_randoms, esto es más o menos trivial
-//	como tambien creiterio, para lo cual debo tener mucho más cuidado
-//	o no?
-//	si lo dejo como está voy a encontrar algunos nuevos voids, pero creo que no son muchos
-//	entonces voy a dejarlo como está, ya que así como está en éste moemento funciona bien
-//	resultado: voy a refinar los voids exixtentes, y como efecto secundario voy a encontrar
-//	algunos voids pequeños nuevos, pero creo que no son muchos, lo cual no vuelve lento este proceso
-//	entonces: solo voy a modifical lena_randoms, y tal vez el valor del radio menor
-//	línea ~528 en llena_random
-
-
-
-//	la modificación hecha anteriomente se demora mucho:
-//	pedir randoms que llenen toda la caja pero aceptar solo los que están en cascaras alrededor
-//	de los voids
-
-//	nueva estrategia:
-//	for sobre los voids
-//	randoms en una caja alrededor de cada void
-//	aceptar solo los que están en la cascara deseada
-
-
-
-
-
-//	octubre 11
-//	como no sé cuantos randoms voy a necesitar entonces voy a guardarlos
-//	cuando acabe los cuento, los alloco y los lleno (para no usar mpas memoria de la necesaria)
-
-
-
-
-
-
-//	octubre 14
-//	la modificación continúa siendo ineficiente en términos de tiempo de computo
-//	viendo los resultados de los perfiles para 256 Mpc y 128, 256, 512 partículas
-//	parece que es suficiente refinar los voids con radio menor a 5*rad_min_uno
-//	entonces voy a modificar genera_catalogo_random para que solo genere randoms alrededor
-//	de los huecos con estos tamaños
-
-//	este factor 3 parece ser exagerado para las simulaciones con pocas partículas
-//	pero en dichas simulaciones el número de voids es menor (R\in 6,18)
-//	por lo cual no debería representar un riezgo para el tiempo de computo
-
-//	sería ideal hacerlo solo para los voids con dichos tamaños, pero tendría que 
-//	hacer primero la unión, para depués escoger solo los centros de dicho tamaño
-//	sin incluir los anexos pequeños de voids grandes
-//	voy a ver que puedo hacer... espero aclarar lo hecho cuando esté funcionando...
-
-
-
-
-
-
-//	hay un nuevo detalle
-//	cuando incluyo en la lista de huecos, aquellos que vienen de los randoms
-//	algunos de ellos pueden quedar aislados
-//	por lo tanto serían esféricos, y dañarian lo que estaba tratando de hacer
-//	lo que debo hacer es no considerar como voids aquellos que encontré a partir de los randoms
-//	debo asegurarme de que ninguno de ellos sea un nuevo void
-//	como hacerlo?
-//	a la hora de hacer la depuración solo debo admitir nuevos voids cuando
-//	su índice es menor que el número de huecos resultantes del catalogo pixelizado
-
-//	parece que lo más fácil es crear un nuevo indice que me diga si era parte del catalogo pixelizado
-//	o si es fue generado a partir de los randoms
-
-//	parece que la amenaza está bien identificada
-//	falta ver cual es la manera más segura de corregirla, aún cuando salga caro debe ser efectiva
-//	de otro modo estaría dañando directamente lo que debería corregir
-
-//	creé otro arreglo llamaso ID_random
-//	es menor que cero para valores mayores que el numero de huecos generados por los pixel
-//	y mayor que cero para los valores menores
-//	el numero de huecos generado por los pixel es calculado e impreso apenas se termina el ciclo pixel
-
-
-
-//	20 de octubre de 2016
-//	es ineficiente, voy a generar los randoms solo entre 0.9Radv y Radv
-//	al final, estos son los unicos que me van a servir, eso va a disminuir el número de calculos
-//	y la gran cantidad de perdidas
-
-
-
-
-//	cuando lo puse a correr le faltó hacer la parte de depuración
-//	mostró un error después de imprimir: de pura casualidad llega a este punto?
-//	parece que hubo un problema con la liberación de memoria
-//	por ahora voy a correr la parte de depuración
-//	mientras veo que fue lo que generó el error
-
-
-
-
-
-//	octubre 30
-//	voy a intentar optimizar el programa:
-//	voy a crecer esferas pixel solamente alrededor de pixeles subdensos
-//	tambien voy a generar los randoms de forma esferica, para no perder tanto tiempo filtrandolos
-//	tal vez tambien pueda optimizar algunos pragmas
-
-
-
-
-
-
-
-//	enero 14 de 2017
-//	rodando solo HD no alcanzó a terminar
-//	cuando ruede sin HD voy a generar dos catalogos identicos huecos_...
-//	uno para trabajar y otro NHD (o de respaldo)
-//	así, en caso de que no termine el HD completo (randoms, radios_randoms y voids_randoms)
-//	pero alcance a generar los randoms y/o los radios_random
-//	puedo copiar el NHD en el catalogo normal y re-rodar usando ya_catalogo_randoms y/o ya_radios_randoms
-
-
-
-
-//	abril 6 de 2017
-//	perdí la anterior modificación donde calculaba la elipticidad
-//	voy a reconstruirla
-
-
-//	Agosto 24 2017
-//	no estoy seguro si la elipticidad funciona ya, creo que si
-//	eso no es importante porque al final debo extraer la parte HD de este programa
-//	para actualizar VoidFinder_.c
-//	no voy a hacer eso ahora porque no tengo tiempo
-//	si necesito calcula la eliptcidad puedo ir a VoidFinder_.c donde todo funciona, menos
-//	la parte HD
-
-
-
-
-//	marzo 9 de 2019
-//	muchas versiones de refinamiento fueron probadas desde la fecha en el parrafo anterior
-//	esta es la version oficial sin refinamiento, sin introducir esferas-random
-//	lo unico diferente entre esta version VoidFinderPrueba2.c es que voy a aumentar el 
-//	tamano del core de los candidatos a 0.7 el radio del candidato
-
-
-
-//	no se olvide que las células están centradas en los vértices enteros del sistema cartesiano
-//	Nó están en puntos tales como 0.5, 1.5, 203.5
-
-//	Todos los arreglos son globales, así que puedo modificarlos desde cualquier lugar
-
-//	radios en unidades de nc
-//	volumen y densidade en unidades físicas
-
-
-  char catalogo_halos[500];		//	halos,los necesito junto con los voids para generar randoms
-  char catalogo_esferas[500];		//	voids==el hueco más grande
-  char catalogo_voids[500];		//	voids==conjunto de huecos que se sobrelapan a la anterior
-  char catalogo_union[500];		//	voids==union del conjunto anterior
-  char catalogo_huecos[500];		//	huecos con los que contruyeron los voids
-  char catalogo_huecos_respaldo[500];	//	huecos con los que contruyeron los voids, no HD, respaldo
-  char catalogo_particulas[500];	//	particulas de la simulacion
-  char catalogo_randoms[500];		//	catalogo de randoms, solo posiciones
-  char particulas_voids[500];		//	particulas dentro de los voids identificados
-  char densidad_radios[500];		//	radio de las esferas centradas en la grilla cartesiana
-  char randoms_radios[500];		//	radio de las esferas centradas en los randoms
-  char semi_ejes[500];			//	semiejes de los voids
-
-
-
-const int   nc=np;			//	munero 1D de celulas, mi ~KDtree
-const int   nh=np;			//	numero 1D de pixeles para huecos, grilla cartesiana
-const int   NumPart=np*np*np;		//	numero total de particulas
-const int   NumCel=nc*nc*nc;		//	numero total de celulas para el ~KDtree
-const int   NumVoid=10000000;		//	numero maximo de voids que esperamos encontrar
+  char catalogo_halos[500];		//	halos, are considered for setting randoms and improving small voids
+  char catalogo_esferas[500];		//	spherical voids defined as the greatest sphere in each family
+  char catalogo_union[500];		//	non-spherical voids catalog
+  char catalogo_voids[500];		//	individual spherical members of the non-spherical voids
+  char catalogo_huecos[500];		//	spheres for making the voids
+  char catalogo_huecos_respaldo[500];	//	same as last one, but without HD updating
+  char catalogo_particulas[500];	//	dark matter catalog
+  char catalogo_randoms[500];		//	random catalog for improving small non-spherical voids
+  char particulas_voids[500];		//	particles belonging to voids
+  char densidad_radios[500];		//	radoius for spheres centered in the initial grid
+  char randoms_radios[500];		//	radious for spheres centered in the random catalog
+  char semi_ejes[500];			//	semi-axes for non-spherical voids
+
+
+
+const int   nc=np;			//	number of cells in each direction for making a ~KDtree
+const int   nh=np;			//	numero of cells in each direction for making fase 1
+const int   NumPart=np*np*np;		//	number of particles
+const int   NumCel=nc*nc*nc;		//	number of cells for storing the particles in the ~KDtree
+const int   NumVoid=10000000;		//	maximum number of voids we expect to find (for allocation purposes)
 const int   nc2=nc*nc;
 const int   nc24=nc2/4;
 
 const float rho_cr=2.77526627;		//	[10¹¹ h² Ms / Mpc³]
-const float Mp=pow(Lbox,3.)*Om*rho_cr/NumPart;	//	masa de 1 particula [10¹¹ Ms/h]
-const float pi=4.*atan(1.);		//	numero pi
-const float limite=0.2*Om*rho_cr;	//	sobredensidad de los voids en [10¹¹ Ms h² / Mpc³]
-const float halo=200.*Om*rho_cr;	//	sobredensidad de los halo en [10¹¹ Ms h² / Mpc³]
+const float Mp=pow(Lbox,3.)*Om*rho_cr/NumPart;	// particles mass [10¹¹ Ms/h]
+const float pi=4.*atan(1.);		//	number pi
+const float limite=0.2*Om*rho_cr;	//	voids overdensity [10¹¹ Ms h² / Mpc³]
+const float halo=200.*Om*rho_cr;	//	halos overdensity [10¹¹ Ms h² / Mpc³]
 
 //	en http://arxiv.org/pdf/1403.5499v2.pdf solo toman en cuenta voids con radio > 2 rp
 //	donde rp es la distancia media entre particulas
 //	y a la hora de calcular el perfil de densidad solamente muestran el resultado para r > rp
-const float rad_min_dos=0.2;		//	radio minimo HD en unidades de nc, centrados en randoms
-const float rad_min_uno=2.;		//	radio minimo pixelizado en unidades de nc, red cartesiana
+const float rad_min_dos=0.2;		//	minimum HD radious in cell units, for randoms
+const float rad_min_uno=2.;		//	minimum radious in cell units, for cell spheres
 
 //	para el crecimiento de las esferas centradas en la red
 //  radio maximo de busqueda en unidades de nc, equivale a 32Mpc     /4=8Mpc
-const int   incremento=(int)(8.*nc/Lbox);//	cuando no es suficiente el radio siguiente
-const int   otro=4*incremento;		//	radio de busqueda en unidades de nc
-const int   semi=6;			//	=2, entonces radio semi-entero
-const int   bin=semi*otro;		//	numero de bines radiales log, es el maximo
-const int   semi_otro_max=768;		//	es el maximo semi*otro para los nc(128) y Lbox(256) que estamos usando
+const int   incremento=(int)(8.*nc/Lbox);//	increment the radious of search when a void is sphere is bigger than our initial guess,
+const int   otro=4*incremento;		//	radious of search in cell units
+const int   semi=6;			//	=2, then rad-accuracy is half the cell size
+const int   bin=semi*otro;		//	maximum number of log bins
+const int   semi_otro_max=768;		//	maximum value for semi*otro considering nc(128) and Lbox(256)
 
 
 
 //	para refinar los radios estimados en centros de red y centrados en randoms
-const float despl_max=0.05;		//	paso maximo al buscar el centro, fracción del radio
-const float despl_min=0.01;		//	paso minimo = error del centro, fracción del radio
+const float despl_max=0.05;		//	maximum steep for improving the rad valus, in rad units
+const float despl_min=0.01;		//	minimum steep for improving the rad value, in rad units
 
 
 
-int   *Ocu;			//	numero de ocupacion de cada celda
-int  **Id;			//	indice de las particulas en cada celda
+int   *Ocu;			//	number of particles in a given cell
+int  **Id;			//	index of all particles in a given cell
 
-float *Rho;			//	densidad de las celdas
-float *Rad;			//	radio de la máxima esfera subdensa centrada en cada celula
+float *Rho;			//	cell density
+float *Rad;			//	cell rad
 
-float *X,*Y,*Z;			//	coordenadas de todas las particulas
+float *X,*Y,*Z;			//	dark matter particles position
 
-float *Radv;			//	radio de los voids
-float *Xv,*Yv,*Zv;		//	coordenadas del centro de los voids
+float *Radv;			//	void rad
+float *Xv,*Yv,*Zv;		//	void center
 
-float *Xr,*Yr,*Zr;		//	coordenadas aleatórias para la parte de alta resolución
-float *Rr;			//	radio de la mácima esfera subdensa encontrada en cada random
-int    NumRan;			//	cantidad de coordenadas aleatórias
+float *Xr,*Yr,*Zr;		//	random positions for HD refinement
+float *Rr;			//	radom rad
+int    NumRan;			//	number of randoms
 int    r1=0;			//	==1 -> r=1,     ==0 -> r=r
 
-float *Xh,*Yh,*Zh;		//	catalogo de halos para la parte de alta resolución
-float *Rh;			//	radio de los halos
-int    NumHalos;		//	cantidad de halos
+float *Xh,*Yh,*Zh;		//	haloes position
+float *Rh;			//	haloes rad
+int    NumHalos;		//	number of haloes
 
 int   *ID_random;		//	<0:random >0:pixel
-int   *IDV;			//	se incrementa cada vez que hallo un nuevo void
-int    NumHuecos;		//	candidad de esferas subdensas
+int   *IDV;			//	void counter
+int    NumHuecos;		//	number of cell spheres with right density
 
-float *cont;	//	masa acumulada de cada capa de células, ref: partículas en cada bin
-float *vol;	//	Mp/vol de cada bin
-
-
-float *randomxin,*randomyin,*randomzin;		//	randoms in void para elipticidad
-MatDoub tensor(3,3);				//	tensor de inercia
-float valor[3];					//	autovalores del tensor de inercia
-int NumVoids;					//	número de familias: volumen y elip
+float *cont;	//	cell spheres radial density, ref: number of particles in each shell
+float *vol;	//	Mp/vol for each shell
 
 
+float *randomxin,*randomyin,*randomzin;		//	randoms in void for elipticity computation
+MatDoub tensor(3,3);				//	stress tensor
+float valor[3];					//	stress tensor eigen-values
+int NumVoids;					//	fumber of voids
 
-float rad_rad[9];	//	variables para comparar con los vecinos
+
+
+float rad_rad[9];	//	aux variables for step 2
 float rho_rho[9];
 float x_x[9];
 float y_y[9];
@@ -322,26 +104,26 @@ float z_z[9];
 
 
 
-int   id_void=-1;		//	número de voids encontrados
-float rad_min_actual;		//	es el radio minimo de cada fase: 2 o 0.5
+int   id_void=-1;		//	voids counter
+float rad_min_actual;		//	minimum radious for each fase of the process
 
 
 
 
 
 void archivos(void){
-  sprintf(catalogo_halos,                  "halos_%s",dark_matter_file); // halos,los necesito junto con los voids para generar randoms
-  sprintf(catalogo_esferas,	         "esferas_%s",dark_matter_file); // voids==el hueco más grande
-  sprintf(catalogo_voids,  	           "voids_%s",dark_matter_file); // voids==conjunto de huecos que se sobrelapan a la anterior
-  sprintf(catalogo_union,	           "union_%s",dark_matter_file); // voids==union del conjunto anterior
-  sprintf(catalogo_huecos,   		  "huecos_%s",dark_matter_file); // huecos con los que contruyeron los voids
-  sprintf(catalogo_huecos_respaldo,   "huecos_NHD_%s",dark_matter_file); // huecos con los que contruyeron los voids, no HD, respaldo
-  sprintf(catalogo_particulas,	                 "%s",dark_matter_file); // particulas de la simulacion
-  sprintf(catalogo_randoms,	         "randoms_%s",dark_matter_file); // catalogo de randoms, solo posiciones
-  sprintf(particulas_voids,	"particulas_voids_%s",dark_matter_file); // particulas dentro de los voids identificados
-  sprintf(densidad_radios, 	          "radios_%s",dark_matter_file); // radio de las esferas centradas en la grilla cartesiana
-  sprintf(randoms_radios,  	  "randoms_radios_%s",dark_matter_file); // radio de las esferas centradas en los randoms
-  sprintf(semi_ejes,	  	     "elipticidad_%s",dark_matter_file); // radio de las esferas centradas en los randoms
+  sprintf(catalogo_halos,                  "halos_%s",dark_matter_file); // halos, I use them for the sampling of randoms
+  sprintf(catalogo_esferas,	         "esferas_%s",dark_matter_file); // spherical voids
+  sprintf(catalogo_union,	           "union_%s",dark_matter_file); // all the members of the non-spherical voids
+  sprintf(catalogo_voids,  	           "voids_%s",dark_matter_file); // non-spherical voids
+  sprintf(catalogo_huecos,   		  "huecos_%s",dark_matter_file); // spheres
+  sprintf(catalogo_huecos_respaldo,   "huecos_NHD_%s",dark_matter_file); // spheres before the HD fase
+  sprintf(catalogo_particulas,	                 "%s",dark_matter_file); // dark matter
+  sprintf(catalogo_randoms,	         "randoms_%s",dark_matter_file); // catalog of randoms for improvement of small voids
+  sprintf(particulas_voids,	"particulas_voids_%s",dark_matter_file); // particles belonging to voids
+  sprintf(densidad_radios, 	          "radios_%s",dark_matter_file); // cell spheres radious
+  sprintf(randoms_radios,  	  "randoms_radios_%s",dark_matter_file); // random spheres radious
+  sprintf(semi_ejes,	  	     "elipticidad_%s",dark_matter_file); // principal axes for non-spherical voids
 
 }
 
@@ -351,13 +133,7 @@ void archivos(void){
 
 
 
-//	el número máximo de voids que espero encontrar es fijo
-//	en este momento ya tengo los huecos de la primera fase
-//	y voy a seguir encontrando más
-//	por lo tanto no necesito contar cuantos llevo hasta ahora
-
-//	lee el archivo de respaldo (el que no tiene HD)
-
+// read spheres radious
 void lee_huecos(void){
   printf("\nlee_huecos_NHD-respaldo...\n");fflush(stdout);
   float x,y,z,r;
@@ -378,7 +154,7 @@ void lee_huecos(void){
 
 
 
-
+// count haloes, for allocating purposes
 void cuenta_halos(void){
   printf("\ncuenta_halos\n");fflush(stdout);
   float x,y,z,r,masa;
@@ -392,7 +168,7 @@ void cuenta_halos(void){
 }
 
 
-
+// read haloes
 void lee_halos(void){
   printf("\nlee_halos\n");fflush(stdout);
   float x,y,z,r,masa;
@@ -411,7 +187,7 @@ void lee_halos(void){
 
 
 
-
+// allocate halo variables
 void alloca_halos(void){
   printf("\nalloca_halos\n");fflush(stdout);
   printf("NumHalos=%d\n",NumHalos);fflush(stdout);
@@ -449,7 +225,7 @@ void alloca_halos(void){
 
 
 
-
+// allocate void variables
 void allocar(void){
   printf("\nallocar...\n");fflush(stdout);
   if(!(Rho = (float*) calloc (NumCel , sizeof(float))))
@@ -534,7 +310,7 @@ void allocar(void){
 
 
 
-
+// allocate ~kdtree
 void allocaId(void){
   printf("\nalloca Id...\n");
   fflush(stdout);
@@ -580,9 +356,8 @@ void free_halos(void){
 
 
 
-// modificado para que solo llene las vecindades de los void ya existentes
-// modificado para que solo llene las vecindades de huecos con radio menor a 5*rad_min_uno
-// modificado llena de forma esferica
+// generate some random positions for centering more spheres around small voids
+// those spheres are going to be added to those voids for improving the non-sphericity characteristic
 void genera_catalogo_random(void){
   printf("\nllena_random...\n");fflush(stdout);
   Ran   myran(1050);		//	random: pagina 343 nr3
@@ -707,7 +482,7 @@ void genera_catalogo_random(void){
 
 
 
-
+// count randoms if they were already generated 
 void cuenta_catalogo_random(void){
   printf("\ncuenta_catalogo_random...\n");fflush(stdout);
   FILE * FI;
@@ -763,7 +538,7 @@ void alloca_random(void){
 
 
 
-
+// read random catalog
 void lee_catalogo_random(void){
   printf("\nlee_catalogo_random...\n");fflush(stdout);
   FILE * FI;
@@ -777,7 +552,7 @@ void lee_catalogo_random(void){
 
 
 
-// contiene los radios
+// print file with the radious of spheres around the randoms
 void imprime_random(void){
   printf("\nimprime_random...\n");fflush(stdout);
 FILE * FI;
@@ -790,7 +565,7 @@ fclose(FI);
 
 
 
-//contiene los radios
+// read the file with the radious around randoms
 void lee_random(void){
   printf("\nlee_random...\n");fflush(stdout);
 FILE * FI;
@@ -810,7 +585,7 @@ fclose(FI);
 
 
 
-
+//	set rad=0 to spheres inside the last one that was refined
 void anula(float x,float y,float z,float radio){
   // Dados x, y, z y rad_aux, anula Rad[ijk] para todas las células ijk in void
 
@@ -854,7 +629,7 @@ void anula(float x,float y,float z,float radio){
 
 
 
-
+// set rad=0 to all random spheres inside the last one that was refined
 void anula_random(float x,float y,float z,float radio){
   // Dados x, y, z y rad_aux, anula Rr[i] para todas los randoms i \in void
   int i;
@@ -893,8 +668,7 @@ void anula_random(float x,float y,float z,float radio){
 
 
 
-//  imprime las partículas que pertenecen al void, para depués calcular su bias
-//  no es necesario para calcular el bias lineal, retirar después esta sección
+// save all the particles inside voids in a file
 void imprime(float x,float y,float z,float radio){
 // busca la esfera subdensa más grande alrededor de x,y,z, y guarda su rádio y densidad
   int i,j,k,ii,jj,kk,iii,jjj,kkk,ijk,l;
@@ -983,8 +757,8 @@ fclose(WRI);
 
 
 
-//	dada una posición x,y,z
-//	me dice si está dentro o fuera de los huecos anteriormente identificados
+//	given a coordinate x,y,z
+//	this routine tells me if it is inside any sphere
 int criterio(float x, float y, float z){	//	1: OK, 0: está dentro de un hueco, no calcular
   //	el centro no debe estar dentro de los huecos ya identificados
 
@@ -1041,7 +815,7 @@ return entero;
 
 
 
-// busca la esfera subdensa más grande alrededor de x,y,z. Devuelve su rádio y densidad
+// refine rad and position for a given spheres, given initial guesses for x y z r
 void crece_refina(float x,float y,float z,float &rho,float &radio){
   int i,j,k,ii,jj,kk,iii,jjj,kkk,ijk,l;
   float dx,dy,dz,r,Rmax;
@@ -1221,8 +995,7 @@ rho=halo;
 
 
 
-// crece las esferas para cada uno de los randoms
-// con la restricción de no sobrelapamiento con los huecos de la primera fase
+// grows spheres centered in the random catalog
 void crece_random(void){
   printf("crece_random...\n");fflush(stdout);
   r1=1;						//	crece_refina busca desde r=rad_min_actual
@@ -1245,7 +1018,7 @@ void crece_random(void){
 
 
 
-
+// compares spheres centered in neigbouring places to maximize their size
 void refino(int l,float &x,float &y,float &z, float &radio){
   int i,j,k,p,q;
 
@@ -1386,7 +1159,7 @@ inline int fk(int indice,int radio){
 
 
 
-//	lee xyz, y llena los IDs
+//	read matter cataloge and fill the  ~kdtree
 void lee(){
   printf("lee xyz...\n");
   fflush(stdout);
@@ -1453,7 +1226,7 @@ void lee(){
 
 
 
-//	calcula da densidad celular a partir de las partículas
+//	computes the cells density
 void densidad(){
   printf("\ncalcula la densidad de las celdas...\n");
   fflush(stdout);
@@ -1494,10 +1267,7 @@ void densidad(){
 
 
 
-// busca las esferas subdensas a partir de las densidades celulares
-// busco la esfera subdensa mas grande centrada cada célula (en cada vértice entero del plano)
-// le asigno el rádio (entero*1.)
-// cambio: octubre 30: solo crece alrededor de las esferas subdensas
+// grows a sphere centered in a cell untill it reaches the critical density
 void crece(){
   printf("\nradio máximo de búsqueda usando células = %f [Mpc/h]\n",otro*Lbox/nc);
   printf("Encuentra el radio de la mayor esfera subdensa centrada en cada célula...\n");
@@ -1621,7 +1391,7 @@ void crece(){
 
 
 
-
+// read the cell radious file
 void lee_radios(){
   printf("\nlee el archivo con radios y desidades de celulas...\n");
   fflush(stdout);
@@ -1650,7 +1420,7 @@ void lee_radios(){
 
 
 
-//	busca el contro de celula con el radio más grande de subdensidad 0.2
+//	search for the bigest sphere
 int busco(void){
   float radio=rad_min_actual;
 //  float rho=halo;
@@ -1699,8 +1469,7 @@ int busco(void){
 
 
 
-//  es una copia del anterior, pero para Rr y NumRand, en vez de Rad y NumCel
-// busca la posicion random con el radio más grande de subdensidad 0.2
+//  search for the bigest spere around the random catalog
 int busco_random(void){
   float radio=rad_min_actual;
 //  float rho=1.;
@@ -1738,7 +1507,6 @@ int busco_random(void){
 
 
 
-//	libera X Y Z ID
 void free_xyz(void){
   free(X);
   free(Y);
@@ -1754,8 +1522,7 @@ void free_xyz(void){
 }
 
 
-//	lee el archivo de coordenadas y radios de los huecos
-//	lee el archivo de trabajo (no el de respaldo)
+// count spheres in the file
 void cuenta_huecos(void){
   printf("\ncuenta_huecos...\n");fflush(stdout);
   NumHuecos=0;
@@ -1774,7 +1541,7 @@ void cuenta_huecos(void){
 
 
 
-//	realloca Xv Yv Zv, y llena dos ID
+//	realloc void variables
 void realloca(void){
   printf("\nrealloca V...\n");
   fflush(stdout);
@@ -1824,8 +1591,7 @@ void realloca(void){
 
 
 
-//	lee el archivo de coordenadas y radios de los huecos
-//	lee el archivo de trabajo (no el de respaldo)
+//	read the spheres catalog, the one was improved by the HD procedure
 void lee_huecos_2(void){
   printf("\nlee_huecos2...\n");fflush(stdout);
   float u,v,w,r;
@@ -1865,7 +1631,7 @@ void lee_huecos_2(void){
 
 
 
-//	junta huecos para formar voids
+// gather spheres into families
 void depura(void){
   printf("\ndepura...\n");fflush(stdout);
 
@@ -2029,8 +1795,7 @@ void depura(void){
 
 
 
-//	imprime el catalogo de voids: huecos con su correspondiente indice de familia
-//	un void son todos los huecos pertenecientes a la misma familia
+// print voids file
 void imprime_voids(void){
   printf("\nimprime_voids...\n");fflush(stdout);
   int i;
@@ -2049,7 +1814,7 @@ void imprime_voids(void){
 
 
 
-
+// allocate random and ellipticity variables
 void alloca_ran_elip(int NumRan){
   int b1,i;
   float a1,a2,a3,a4;
@@ -2124,7 +1889,7 @@ void alloca_ran_elip(int NumRan){
 }
 
 
-
+// computes eigen-values for ellipticity estimation
 void calcula_auto_valores(void){
   Symmeig s(tensor,false);		//	false == solo autovalores
   valor[0]=(float) s.d[0];
@@ -2149,7 +1914,7 @@ void calcula_auto_valores(void){
 
 
 
-//	calcula el volumen, el centro geometrico y la elipticidad de los voids
+//	computes center, vaolume and ellipticity for non-spherical voids
 void volumen_elipticidad(void){
   Ran myran(601);                //      random: pagina 343 nr3  (semilla)
   printf("\ncalcula volumen...\n");fflush(stdout);
@@ -2371,7 +2136,7 @@ int main(int argc, char **argv){
       else
         lee_radios();
 
-      // Busco la esfera más grande
+      // search for the bigest cell sphere
       l=busco();	//	es el índice de la célula con la mayor esfera subdensa
       printf("ya buscó la célula con el rádio más grande\n");
       fflush(stdout);
@@ -2380,7 +2145,7 @@ int main(int argc, char **argv){
       radio=Rad[l];printf("su radio es %f\n",Rad[l]);fflush(stdout);
       Rad[l]=-1.;
 
-      refino(l,x,y,z,radio);		//	refina la esfera de la célula l
+      refino(l,x,y,z,radio);		//	improves the sphere l by using particles positions
 
       printf("radio refinado del void más grande = %f\n",radio);
       printf("centro refinado del void más grande = (%f, %f, %f)\n\n",x,y,z);  fflush(stdout);
@@ -2399,9 +2164,7 @@ int main(int argc, char **argv){
       Zv[id_void]=z;
       Radv[id_void]=radio;
 
-      anula(x,y,z,radio);		//	anula el rádio de las celdas \in void
-				//	y aumenta la densidad de las células \in void
-      //  crece_celulas(x,y,z,radio);	//	recalcula los radios celulares vecinos
+      anula(x,y,z,radio);		// set to 0 the radious of spheres inside sphere l
 
       FILE * WR;
       WR=fopen(particulas_voids,"w+");
@@ -2418,19 +2181,18 @@ int main(int argc, char **argv){
 
 
 
-      int condicion=1;		//	permanencia dentro del ciclo principal
+      int condicion=1;		//	keep going
       printf("entra al ciclo principal\n");
       fflush(stdout);
 
-      while(condicion>=0){		//	ciclo principal
+      while(condicion>=0){		//	main cycle
 
-        // Busco la siguiente esfera mas grande
+        // search for the next bigest sphere
         condicion=busco();
-        //	ya identifiqué la siguiente esfera más grande, condicion es el índice de su celda central
-        //  si no hay más esferas con estas características, la condición debe ser -1
+
 
         if(condicion==-1){
-          printf("en este punto deberia salir del ciclo principal\n\n");
+          printf("everything is done for now\n\n");
           fflush(stdout);
         }
 
@@ -2453,28 +2215,13 @@ int main(int argc, char **argv){
             Zv[id_void]=z;
             Radv[id_void]=radio;
 
-            anula(x,y,z,radio);		//	anula el rádio de las celdas \in void
-					//	y aumenta la densidad de las células \in void
-            //	crece_celulas(x,y,z,radio);	//	recalcula los radios celulares vecinos
-            //	imprime(x,y,z,radio);
+            anula(x,y,z,radio);		// set to 0 the radious of spheres inside sphere l
           }
           else
-            Rad[condicion]=-1.;		//	ya no es candidato a centro de void
-
+            Rad[condicion]=-1.;		
         }	//	cierra el else
       }	//	cierra el ciclo principal
 
-    //	cuenta los huecos generados por pixel (o sea, el catalogo de respaldo, no el de trabajo)
-//    int NumPix=0;
-//    ESC = fopen(catalogo_huecos_respaldo,"r");
-//    while((fscanf(ESC,"%f %f %f %f\n",&x,&y,&z,&radio))!=EOF);
-//      NumPix++;
-//    fclose(ESC);
-
-    //	imprime este valor en un archivo para que no se solo estos generen voids y no los random
-//    ESC = fopen(pixel,"w+");
-//      fprintf(ESC,"%d",NumPix);
-//    fclose(ESC);
 
     }	//	cierra el calculo prixelizado + refinado (else solo_HD=0)
 
@@ -2496,7 +2243,7 @@ int main(int argc, char **argv){
 
     /////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////
-    //	mejorando la resolución
+    //	DH improvement
     /////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////
     if(no_HD==0){
@@ -2535,12 +2282,10 @@ int main(int argc, char **argv){
 
 
 
-      while(condicion>=0){		//	ciclo de alta resolución
+      while(condicion>=0){		//	HD cycle
 
-        condicion=busco_random();    // Busco la siguiente esfera mas grande
+        condicion=busco_random();    // search for the bigest random sphere
 
-        //  ya identifiqué la siguiente esfera más grande, condicion es el índice de su random
-        //  si no hay más esferas con estas características, la condición debe ser -1
 
         if(condicion==-1){
           printf("en este punto deberia salir del ciclo de alta resolución\n\n");
@@ -2565,9 +2310,6 @@ int main(int argc, char **argv){
             Radv[id_void]=radio;
             anula_random(x,y,z,radio);		//	anula el rádio de los randoms \in void
 
-            //	crece_random_vecinos(x,y,z,radio);	//	recalcula los radios de los randoms vecinos
-
-            //	imprime(x,y,z,radio);
 
           }
           else
@@ -2589,7 +2331,7 @@ int main(int argc, char **argv){
 
   /////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////
-  //    sección de depuración
+  //    gathering spheres into families
   /////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////
   printf("depurando\n");fflush(stdout);
